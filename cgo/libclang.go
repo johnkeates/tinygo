@@ -4,7 +4,9 @@ package cgo
 // modification. It does not touch the AST itself.
 
 import (
+	"crypto/sha256"
 	"crypto/sha512"
+	"encoding/hex"
 	"fmt"
 	"go/ast"
 	"go/scanner"
@@ -47,6 +49,7 @@ CXType tinygo_clang_getTypedefDeclUnderlyingType(GoCXCursor c);
 CXType tinygo_clang_getCursorResultType(GoCXCursor c);
 int tinygo_clang_Cursor_getNumArguments(GoCXCursor c);
 GoCXCursor tinygo_clang_Cursor_getArgument(GoCXCursor c, unsigned i);
+enum CX_StorageClass tinygo_clang_Cursor_getStorageClass(GoCXCursor c);
 CXSourceLocation tinygo_clang_getCursorLocation(GoCXCursor c);
 CXSourceRange tinygo_clang_getCursorExtent(GoCXCursor c);
 CXTranslationUnit tinygo_clang_Cursor_getTranslationUnit(GoCXCursor c);
@@ -187,19 +190,32 @@ func (f *cgoFile) createASTNode(name string, c clangCursor) (ast.Node, *elaborat
 			Kind: ast.Fun,
 			Name: "C." + name,
 		}
+		exportName := name
+		localName := name
+		if C.tinygo_clang_Cursor_getStorageClass(c) == C.CX_SC_Static {
+			// A static function is assigned a globally unique symbol name based
+			// on the file path (like _Cgo_static_2d09198adbf58f4f4655_foo) and
+			// has a different Go name in the form of C.foo!symbols.go instead
+			// of just C.foo.
+			path := f.importPath + "/" + filepath.Base(f.fset.File(f.file.Pos()).Name())
+			staticIDBuf := sha256.Sum256([]byte(path))
+			staticID := hex.EncodeToString(staticIDBuf[:10])
+			exportName = "_Cgo_static_" + staticID + "_" + name
+			localName = name + "!" + filepath.Base(path)
+		}
 		args := make([]*ast.Field, numArgs)
 		decl := &ast.FuncDecl{
 			Doc: &ast.CommentGroup{
 				List: []*ast.Comment{
 					{
 						Slash: pos - 1,
-						Text:  "//export " + name,
+						Text:  "//export " + exportName,
 					},
 				},
 			},
 			Name: &ast.Ident{
 				NamePos: pos,
-				Name:    "C." + name,
+				Name:    "C." + localName,
 				Obj:     obj,
 			},
 			Type: &ast.FuncType{

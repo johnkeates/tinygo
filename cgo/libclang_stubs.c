@@ -45,6 +45,10 @@ CXCursor tinygo_clang_Cursor_getArgument(CXCursor c, unsigned i) {
 	return clang_Cursor_getArgument(c, i);
 }
 
+enum CX_StorageClass tinygo_clang_Cursor_getStorageClass(CXCursor c) {
+	return clang_Cursor_getStorageClass(c);
+}
+
 CXSourceLocation tinygo_clang_getCursorLocation(CXCursor c) {
 	return clang_getCursorLocation(c);
 }
