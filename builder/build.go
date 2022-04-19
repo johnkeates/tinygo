@@ -281,6 +281,7 @@ func Build(pkgName, outpath string, config *compileopts.Config, action func(Buil
 				// Compile AST to IR. The compiler.CompilePackage function will
 				// build the SSA as needed.
 				mod, errs := compiler.CompilePackage(pkg.ImportPath, pkg, program.Package(pkg.Pkg), machine, compilerConfig, config.DumpSSA())
+				defer mod.Dispose()
 				if errs != nil {
 					return newMultiError(errs)
 				}
@@ -330,6 +331,7 @@ func Build(pkgName, outpath string, config *compileopts.Config, action func(Buil
 					if err != nil {
 						return fmt.Errorf("failed to link module: %w", err)
 					}
+					mod.Dispose()
 				}
 
 				// Erase all globals that are part of the undefinedGlobals list.
@@ -426,6 +428,11 @@ func Build(pkgName, outpath string, config *compileopts.Config, action func(Buil
 
 	// Add job that links and optimizes all packages together.
 	var mod llvm.Module
+	defer func() {
+		if !mod.IsNil() {
+			mod.Dispose()
+		}
+	}()
 	var stackSizeLoads []string
 	programJob := &compileJob{
 		description:  "link+optimize packages (LTO)",
